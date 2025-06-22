@@ -42,7 +42,7 @@ from pandas import DataFrame
 ##############################################################################################
 # Input: None (Option) 상세 Input값 변경이 필요한 경우 API문서 참조
 # Output: DataFrame (Option) output API 문서 참조 등
-def get_overseas_order(ord_dv="", excg_cd="", itm_no="", qty=0, unpr=0, tr_cont="", FK100="", NK100="", dataframe=None):  # 국내주식주문 > 주식주문(현금)
+def get_overseas_order(ord_dv="", excg_cd="", itm_no="", qty=0, unpr=0, tr_cont="", ord_dvsn="00", FK100="", NK100="", dataframe=None):  # 국내주식주문 > 주식주문(현금)
     url = '/uapi/overseas-stock/v1/trading/order'
 
     if ord_dv == "buy":
@@ -89,7 +89,7 @@ def get_overseas_order(ord_dv="", excg_cd="", itm_no="", qty=0, unpr=0, tr_cont=
         print("주문수량 확인요망!!!")
         return None
 
-    if unpr == 0:
+    if unpr == 0 and ord_dvsn== "00":
         print("해외주문단가 확인요망!!!")
         return None
 
