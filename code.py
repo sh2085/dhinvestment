@@ -71,6 +71,15 @@ def worker(ticker_queue, all_data, result_list, lock, threshold_rsi=30):
 
 # ✅ 실행 예시
 def main():
+    vix = yf.download("^VIX", period="1mo", interval="1d", auto_adjust=True)
+    latest_close = vix['Close'].iloc[-1]
+    if isinstance(vix, pd.Series):
+        latest_close_value = latest_close.values[0]
+    else:
+        latest_close_value = float(latest_close)
+
+    print(f"VIX 마지막 종가: {latest_close_value}")
+
     # ▶️ 예제용 일부 NASDAQ 종목 (실제는 전체 NASDAQ 리스트 필요)
     tickers = ["AAPL", "MSFT", "NVDA", "TSLA", "AMD", "GOOGL", "META", "AMZN"]
 
