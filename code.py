@@ -5,10 +5,13 @@ import kis_ovrseastk as kb
 import yaml
 import pandas as pd
 import sys
+from ordermanager import OrderManager
 
 
 #config = yaml.load("config.yaml")
 #토큰 발급 kis_auth import
+from evaluator import MarketSignalEvaluator
+
 ka.auth(svr='vps')
 
 # rt_data = kb.get_overseas_price_quot_price_detail(excd="NAS", itm_no="APLD")
@@ -20,6 +23,8 @@ import numpy as np
 import threading
 import requests
 from queue import Queue
+import fear_and_greed as fg
+from ordermanager import OrderManager
 
 # ✅ RSI 계산 함수
 def compute_rsi(close_prices, period=14):
@@ -32,53 +37,64 @@ def compute_rsi(close_prices, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
+def check_trade_signal(rsi, vix, greed):
+    if rsi >=30 and rsi <=70:
+        return None
+
+
 # ✅ 멀티스레딩 작업자 함수
-def worker(ticker_queue, all_data, result_list, lock, threshold_rsi=30):
-    while not ticker_queue.empty():
-        ticker = ticker_queue.get()
+def worker(ticker, all_data, vix, greed):
         try:
             print(f"📦 Processing: {ticker}")
 
             if ticker not in all_data.columns.get_level_values(0):
                 print(f"⚠️ {ticker}: 데이터 없음")
-                continue
+                return
 
             df = all_data[ticker].dropna()
             if 'Close' not in df.columns or df['Close'].isnull().all():
                 print(f"⚠️ {ticker}: 종가 없음")
-                continue
+                return
 
             close_prices = df['Close'].dropna()
             if len(close_prices) < 15:
                 print(f"⚠️ {ticker}: 종가 수 부족")
-                continue
+                return
 
             rsi_series = compute_rsi(close_prices).dropna()
             if rsi_series.empty:
-                continue
-
+                return
             latest_rsi = float(rsi_series.iloc[-1])
-            print(f"{ticker} RSI = {latest_rsi}\n")
-            if latest_rsi <= threshold_rsi or latest_rsi >= 70:
-                with lock:
-                    result_list.append((ticker, round(latest_rsi, 2)))
-        except Exception as e:
-            with lock:
-                print(f"❌ [{ticker}] 처리 중 오류 발생: {e}")
-        finally:
-            ticker_queue.task_done()
+            print(f"{ticker} Price = {close_prices[-1]}, RSI = {latest_rsi}, vix = {vix}, greed = {greed}")
 
+            # ✅ 클래스를 사용해 판단
+            evaluator = MarketSignalEvaluator(ticker=ticker, vix=vix, fgi=greed, rsi=latest_rsi)
+            evaluation = evaluator.evaluate()
+
+            if evaluation.should_buy:
+                print(f"🟢 매수 조건 만족: {ticker}")
+                order.place_order("buy", ticker)
+
+            elif evaluation.should_sell:
+                print(f"🔴 매도 조건 만족: {ticker}")
+                order.place_order("sell", ticker)
+            else:
+                print("조건 만족 실패, 관망")
+        except Exception as e:
+                print(f"❌ [{ticker}] 처리 중 오류 발생: {e}")
 
 # ✅ 실행 예시
+order = OrderManager()
 def main():
     vix = yf.download("^VIX", period="1mo", interval="1d", auto_adjust=True)
+    greed = fg.get()
     latest_close = vix['Close'].iloc[-1]
     if isinstance(vix, pd.Series):
-        latest_close_value = latest_close.values[0]
+        latest_vix = latest_close.values[0]
     else:
-        latest_close_value = float(latest_close)
+        latest_vix = float(latest_close.iloc[0])
 
-    print(f"VIX 마지막 종가: {latest_close_value}")
+    print(f"VIX: {latest_vix}, Greed Index : {greed[0]}")
 
     # ▶️ 예제용 일부 NASDAQ 종목 (실제는 전체 NASDAQ 리스트 필요)
     tickers = ["AAPL", "MSFT", "NVDA", "TSLA", "AMD", "GOOGL", "META", "AMZN"]
@@ -93,29 +109,8 @@ def main():
         threads=True  # yfinance 내부 병렬화
     )
 
-    ticker_queue = Queue()
     for ticker in tickers:
-        ticker_queue.put(ticker)
-
-    results = []
-    lock = threading.Lock()
-
-    threads = []
-    for _ in range(5):  # 동시에 5개 티커 처리
-        t = threading.Thread(target=worker, args=(ticker_queue, all_data, results, lock))
-        t.start()
-        threads.append(t)
-
-    for t in threads:
-        t.join()
-
-    # ✅ 필터링 결과 출력 및 주문 예시
-    for ticker, rsi in results:
-        print(f"{ticker} | RSI: {rsi}")
-        if rsi <= 30:
-            rt_data = kb.get_overseas_order(ord_dv="buy", excg_cd="NASD", itm_no=ticker, qty=1, ord_dvsn="01")
-            # 주문 예시 (지정가 100달러로 임의 설정)
-
+        worker(ticker, all_data, latest_vix, greed[0])
 
 if __name__ == "__main__":
     main()
