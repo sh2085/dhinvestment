@@ -1,0 +1,5 @@
+numpy
+pandas
+finta
+requests
+python-telegram-bot

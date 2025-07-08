@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  tradingbot:
+    build: .
+    container_name: my_trading_bot
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    command: /bin/bash
