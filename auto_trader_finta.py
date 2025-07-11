@@ -17,21 +17,22 @@ class AutoTrader:
         self.telegram_bot = telegram.Bot(token=telegram_token)
         self.telegram_chat_id = telegram_chat_id
 
-        self.ACCESS_TOKEN = self.get_access_token()
+        self.ACCESS_TOKEN = None
+        self.token_expiry = 0
         self.prepare_header()
 
     def get_access_token(self):
-        url = f"{self.BASE_URL}/oauth2/tokenP"
-        headers = {"Content-Type": "application/json"}
-        body = {
-            "grant_type": "client_credentials",
-            "appkey": self.APP_KEY,
-            "appsecret": self.APP_SECRET
-        }
-        print(body)
-        res = requests.post(url, headers=headers, data=json.dumps(body))
-        print("토큰 발급 응답:", res.text)
-        return res.json()['access_token']
+        now = time.time()
+        if self.ACCESS_TOKEN and now < self.token_expiry:
+            print("유효한 기존 토큰 사용")
+            return self.ACCESS_TOKEN
+
+        # 새로 발급
+        res = requests.post(...)
+        data = res.json()
+        self.ACCESS_TOKEN = data['access_token']
+        self.token_expiry = now + data['expires_in'] - 10  # 만료 약간 앞당기기
+        return self.ACCESS_TOKEN
 
     def prepare_header(self):
         self.HEADER = {
