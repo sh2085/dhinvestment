@@ -28,10 +28,19 @@ class AutoTrader:
             return self.ACCESS_TOKEN
 
         # 새로 발급
-        res = requests.post(...)
+        url = f"{self.BASE_URL}/oauth2/tokenP"
+        headers = {"Content-Type": "application/json"}
+        body = {
+            "grant_type": "client_credentials",
+            "appkey": self.APP_KEY,
+            "appsecret": self.APP_SECRET
+        }
+        print(body)
+        res = requests.post(url, headers=headers, data=json.dumps(body))
         data = res.json()
         self.ACCESS_TOKEN = data['access_token']
         self.token_expiry = now + data['expires_in'] - 10  # 만료 약간 앞당기기
+        print("token = " + self.ACCESS_TOKEN)
         return self.ACCESS_TOKEN
 
     def prepare_header(self):
