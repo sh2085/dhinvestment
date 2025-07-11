@@ -5,6 +5,7 @@ from finta import TA
 import telegram
 import time
 
+
 class AutoTrader:
     def __init__(self, app_key, app_secret, telegram_token, telegram_chat_id, account_no, selected_stocks):
         self.APP_KEY = app_key
@@ -12,19 +13,18 @@ class AutoTrader:
         self.ACCOUNT_NO = account_no
         self.selected_stocks = selected_stocks
         self.BASE_URL = "https://openapi.koreainvestment.com:9443"
-        self.HEADER = {}
         
         self.telegram_bot = telegram.Bot(token=telegram_token)
         self.telegram_chat_id = telegram_chat_id
 
         self.ACCESS_TOKEN = None
         self.token_expiry = 0
-        self.prepare_header()
+        self.HEADER = {}
 
     def get_access_token(self):
         now = time.time()
         if self.ACCESS_TOKEN and now < self.token_expiry:
-            print("유효한 기존 토큰 사용")
+            print("✅ 유효한 기존 토큰 사용")
             return self.ACCESS_TOKEN
 
         # 새로 발급
@@ -35,12 +35,15 @@ class AutoTrader:
             "appkey": self.APP_KEY,
             "appsecret": self.APP_SECRET
         }
-        print(body)
+        print("🔑 토큰 요청:", body)
         res = requests.post(url, headers=headers, data=json.dumps(body))
         data = res.json()
         self.ACCESS_TOKEN = data['access_token']
-        self.token_expiry = now + data['expires_in'] - 10  # 만료 약간 앞당기기
-        print("token = " + self.ACCESS_TOKEN)
+        self.token_expiry = now + data['expires_in'] - 10  # 약간 미리 만료
+
+        # 발급 후 헤더도 갱신
+        self.prepare_header()
+        print("✅ 토큰 발급 완료:", self.ACCESS_TOKEN)
         return self.ACCESS_TOKEN
 
     def prepare_header(self):
@@ -56,6 +59,7 @@ class AutoTrader:
         self.telegram_bot.send_message(chat_id=self.telegram_chat_id, text=msg)
 
     def check_balance(self):
+        self.get_access_token()  # 토큰 만료 자동 처리
         url = f"{self.BASE_URL}/uapi/overseas-stock/v1/trading/inquire-balance"
         params = {
             "CANO": self.ACCOUNT_NO,
@@ -65,18 +69,18 @@ class AutoTrader:
             "CTX_AREA_FK200": "",
             "CTX_AREA_NK200": ""
         }
-        print(f"잔고 조회 요청: {params}")
-        print(f"headers: {self.HEADER}")
+        print(f"📊 잔고 조회 요청: {params}")
+        print(f"🔐 headers: {self.HEADER}")
         res = requests.get(url, headers=self.HEADER, params=params)
         print("응답 상태코드:", res.status_code)
         print("응답 본문:", res.text)
         data = res.json()
-        print(f"잔고 조회 결과: {data}")
         usd_cash = float(data['output1']['cash_usd'])
-        print(f"USD 잔고: ${usd_cash:.2f}")
+        print(f"💰 USD 잔고: ${usd_cash:.2f}")
         return usd_cash
 
     def get_daily_ohlcv(self, symbol):
+        self.get_access_token()
         params = {
             "AUTH": "",
             "EXCD": "NAS",
@@ -92,7 +96,7 @@ class AutoTrader:
         df['high'] = df['high'].astype(float)
         df['low'] = df['low'].astype(float)
         df['open'] = df['open'].astype(float)
-        return df[['open','high','low','close']]
+        return df[['open', 'high', 'low', 'close']]
 
     def add_indicators(self, df):
         df['EMA5'] = TA.EMA(df, 5)
@@ -100,7 +104,7 @@ class AutoTrader:
         bb = TA.BBANDS(df)
         df['BB_upper'] = bb['BB_UPPER']
         df['BB_lower'] = bb['BB_LOWER']
-        df['BB_width'] = df['BB_UPPER'] - df['BB_LOWER']
+        df['BB_width'] = df['BB_upper'] - df['BB_lower']
         df['RSI'] = TA.RSI(df)
         return df
 
@@ -121,6 +125,7 @@ class AutoTrader:
         return df
 
     def place_order(self, symbol, qty, side="buy"):
+        self.get_access_token()
         url = f"{self.BASE_URL}/overseas-stock/v1/trading/order"
         body = {
             "CANO": self.ACCOUNT_NO,
